@@ -1,5 +1,8 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
+using FFmpeg.NET.Engine;
+using FFmpeg.NET.Enums;
 using FFmpeg.NET.Events;
 using FFmpeg.NET.Tests.Fixtures;
 using Xunit;
@@ -19,45 +22,36 @@ namespace FFmpeg.NET.Tests
         private readonly ITestOutputHelper _outputHelper;
 
         [Fact]
-        public void FFmpeg_Invokes_ConversionCompleteEvent()
+        public async Task FFmpeg_Invokes_ConversionCompleteEvent()
         {
-            var output = new MediaFile(new FileInfo(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $@"MediaFiles\conversionTest.mp4")));
-
-            ConversionCompleteEventArgs completeEventArgs = null;
+            var outputFile = new FileInfo(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $@"MediaFiles\conversionTest.mp4"));
 
             var ffmpeg = new Engine.FFmpeg();
-            ffmpeg.Complete += (sender, args) => { 
-                completeEventArgs = args;
+            ffmpeg.Error += (sender, args) =>
+            {
+                _outputHelper.WriteLine(args.Exception?.Message ?? string.Empty);
+                _outputHelper.WriteLine(args.Exception?.ExitCode.ToString() ?? string.Empty);
+            };
+            ffmpeg.Data += (sender, args) => _outputHelper.WriteLine(args.Data ?? string.Empty);
+            ffmpeg.Complete += (sender, args) =>
+            {
+                Assert.NotNull(args);
+                Assert.NotNull(args.Output);
                 _outputHelper.WriteLine("ConversionCompletedEvent: {0}", args);
             };
-            ffmpeg.Convert(_fixture.VideoFile, output);
+            ffmpeg.Progress += (sender, args) => _outputHelper.WriteLine(args.ToString());
+
+            using (var outputStream = outputFile.OpenWrite())
+            {
+                var output = new MediaObject(outputStream);
+                await ffmpeg.Convert(_fixture.Video, output, new ConversionOptions {Format = Format.Mp4, Codec = "h264"});
+            }
+
+            Assert.True(File.Exists(outputFile.FullName));
+            outputFile.Delete();
+            Assert.False(File.Exists(outputFile.FullName));
+
             
-            Assert.True(File.Exists(output.FileInfo.FullName));
-            output.FileInfo.Delete();
-            Assert.False(File.Exists(output.FileInfo.FullName));
-
-            Assert.NotNull(completeEventArgs);
-            Assert.NotNull(completeEventArgs.Output);
-            Assert.Equal(output, completeEventArgs.Output);
-        }
-
-        [Fact]
-        public void FFmpeg_Should_Throw_Exception_On_Invalid_OutputFile()
-        {
-            var ffmpeg = new Engine.FFmpeg();
-            var output = new MediaFile("test.txt");
-            var input = _fixture.VideoFile;
-
-            var e = Assert.Raises<ConversionErrorEventArgs>(
-                x => ffmpeg.Error += x,
-                x => ffmpeg.Error -= x,
-                () => ffmpeg.Convert(input, output));
-
-            Assert.NotNull(e);
-            Assert.Equal(e.Sender, ffmpeg);
-            Assert.Equal(input, e.Arguments.Input);
-            Assert.Equal(output, e.Arguments.Output);
-            Assert.Equal(1, e.Arguments.Exception.ExitCode);
         }
     }
 }

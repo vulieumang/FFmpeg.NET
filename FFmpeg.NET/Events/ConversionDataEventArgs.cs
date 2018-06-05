@@ -4,7 +4,7 @@ namespace FFmpeg.NET.Events
 {
     public class ConversionDataEventArgs : EventArgs
     {
-        public ConversionDataEventArgs(string data, MediaFile input, MediaFile output)
+        public ConversionDataEventArgs(string data, MediaObject input, MediaObject output)
         {
             Data = data;
             Input = input;
@@ -12,7 +12,7 @@ namespace FFmpeg.NET.Events
         }
 
         public string Data { get; }
-        public MediaFile Input { get; }
-        public MediaFile Output { get; }
+        public MediaObject Input { get; }
+        public MediaObject Output { get; }
     }
 }

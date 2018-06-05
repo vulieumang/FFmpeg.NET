@@ -7,17 +7,17 @@ namespace FFmpeg.NET.Services
 {
     public class M3uPlaylistCreator : IPlaylistCreator
     {
-        public string Create(IList<MetaData> metaData)
+        public string Create(IDictionary<FileInfo,MetaData> files)
         {
-            if (metaData == null)
-                throw new ArgumentException(nameof(metaData));
+            if (files == null)
+                throw new ArgumentException(nameof(files));
 
             var sb = new StringBuilder();
             sb.AppendLine("#EXTM3U");
-            foreach (var meta in metaData)
+            foreach (var file in files)
             {
-                sb.AppendLine($"#EXTINF:{(int) meta.Duration.TotalSeconds},{meta.FileInfo.Name}");
-                sb.AppendLine($"file:///{meta.FileInfo.FullName.Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)}");
+                sb.AppendLine($"#EXTINF:{(int)file.Value.Duration.TotalSeconds},{file.Key.Name}");
+                sb.AppendLine($"file:///{file.Key.FullName.Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)}");
             }
 
             return sb.ToString();

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using FFmpeg.NET.Engine.Models;
-using FFmpeg.NET.Events;
 
 namespace FFmpeg.NET.Engine
 {
@@ -15,7 +14,7 @@ namespace FFmpeg.NET.Engine
         /// <summary>
         ///     Dictionary containing every Regex test.
         /// </summary>
-        internal static Dictionary<Find, Regex> Index = new Dictionary<Find, Regex>
+        internal static readonly Dictionary<Find, Regex> Index = new Dictionary<Find, Regex>
         {
             {Find.BitRate, new Regex(@"([0-9]*)\s*kb/s")},
             {Find.Duration, new Regex(@"Duration: ([^,]*), ")},
@@ -102,11 +101,11 @@ namespace FFmpeg.NET.Engine
             var matchVideoFps = Index[Find.VideoFps].Match(fullMetadata).Groups;
             var matchVideoBitRate = Index[Find.BitRate].Match(fullMetadata);
 
-            if (engine.InputFile.MetaData == null)
-                engine.InputFile.MetaData = new MetaData();
+            if (engine.Input.MetaData == null)
+                engine.Input.MetaData = new MetaData();
 
-            if (engine.InputFile.MetaData.VideoData == null)
-                engine.InputFile.MetaData.VideoData = new MetaData.Video
+            if (engine.Input.MetaData.VideoData == null)
+                engine.Input.MetaData.VideoData = new MetaData.Video
                 {
                     Format = matchVideoFormatColorSize[1].ToString(),
                     ColorModel = matchVideoFormatColorSize[2].ToString(),
@@ -130,11 +129,11 @@ namespace FFmpeg.NET.Engine
             var matchAudioFormatHzChannel = Index[Find.AudioFormatHzChannel].Match(fullMetadata).Groups;
             var matchAudioBitRate = Index[Find.BitRate].Match(fullMetadata).Groups;
 
-            if (engine.InputFile.MetaData == null)
-                engine.InputFile.MetaData = new MetaData();
+            if (engine.Input.MetaData == null)
+                engine.Input.MetaData = new MetaData();
 
-            if (engine.InputFile.MetaData.AudioData == null)
-                engine.InputFile.MetaData.AudioData = new MetaData.Audio
+            if (engine.Input.MetaData.AudioData == null)
+                engine.Input.MetaData.AudioData = new MetaData.Audio
                 {
                     Format = matchAudioFormatHzChannel[1].ToString(),
                     SampleRate = matchAudioFormatHzChannel[2].ToString(),

@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using FFmpeg.NET.Events;
 using FFmpeg.NET.Exceptions;
 
@@ -9,52 +10,50 @@ namespace FFmpeg.NET.Engine
 {
     internal sealed class FFmpegProcess
     {
-        public void Execute(FFmpegParameters parameters, string ffmpegFilePath)
+        public async Task Execute(FFmpegParameters parameters, string ffmpegFilePath, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var argumentBuilder = new FFmpegArgumentBuilder();
-            var arguments = argumentBuilder.Build(parameters);
-            var startInfo = GenerateStartInfo(ffmpegFilePath, arguments);
-            Execute(startInfo, parameters);
+            var startInfo = GenerateStartInfo(parameters, ffmpegFilePath);
+            await ExecuteStreamAsync(startInfo, parameters, cancellationToken);
         }
 
-        private void Execute(ProcessStartInfo startInfo, FFmpegParameters parameters)
+        private async Task ExecuteStreamAsync(ProcessStartInfo startInfo, FFmpegParameters parameters, CancellationToken cancellationToken)
         {
-            var messages = new List<string>();
+           var messages = new List<string>();
             Exception caughtException = null;
 
-            using (var ffmpegProcess = Process.Start(startInfo))
+            using (var ffmpegProcess = new Process {StartInfo = startInfo, EnableRaisingEvents = true})
             {
-                if (ffmpegProcess == null)
-                    throw new InvalidOperationException(Resources.Resources.Exceptions_FFmpeg_Process_Not_Running);
+                ffmpegProcess.Exited += (sender, e) =>
+                {
+                    var process = (Process) sender;
+                    if (process.ExitCode != 0 || caughtException != null)
+                    {
+                        var message = messages.Count > 0 ? string.Join("", messages) : null;
+                        var exception = new FFmpegException(message, caughtException, process.ExitCode);
+                        OnConversionError(new ConversionErrorEventArgs(exception, parameters.Input, parameters.Output));
+                    }
+                    else
+                    {
+                        OnConversionCompleted(new ConversionCompleteEventArgs(parameters.Input, parameters.Output));
+                    }
+                };
+                ffmpegProcess.ErrorDataReceived += (sender, e) => OnData(new ConversionDataEventArgs(e.Data, parameters.Input, parameters.Output));
+                ffmpegProcess.ErrorDataReceived += (sender, e) => FFmpegProcessOnErrorDataReceived(e, parameters, ref caughtException, messages);
 
-                ffmpegProcess.ErrorDataReceived += (sender, e) => OnData(new ConversionDataEventArgs(e.Data, parameters.InputFile, parameters.OutputFile));
-                ffmpegProcess.ErrorDataReceived += (sender, e) => { FFmpegProcessOnErrorDataReceived(e, parameters, ref caughtException, messages); };
-
+                ffmpegProcess.Start();
                 ffmpegProcess.BeginErrorReadLine();
+
+                var inputTask = Task.Run(() =>
+                {
+                    parameters.Input.Stream.CopyTo(ffmpegProcess.StandardInput.BaseStream);
+                    ffmpegProcess.StandardInput.Close();
+                }, cancellationToken);
+
+                var outputTask = Task.Run(() => { ffmpegProcess.StandardOutput.BaseStream.CopyTo(parameters.Output.Stream); }, cancellationToken);
+
+                await Task.WhenAll(inputTask, outputTask);
+
                 ffmpegProcess.WaitForExit();
-
-                if (ffmpegProcess.ExitCode != 0 || caughtException != null)
-                {
-                    try
-                    {
-                        ffmpegProcess.Kill();
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        // swallow exceptions that are thrown when killing the process, 
-                        // one possible candidate is the application ending naturally before we get a chance to kill it
-                    }
-                    catch (Win32Exception)
-                    {
-                    }
-
-                    var exception = new FFmpegException(messages[1] + messages[0], caughtException, ffmpegProcess.ExitCode);
-                    OnConversionError(new ConversionErrorEventArgs(exception, parameters.InputFile, parameters.OutputFile));
-                }
-                else
-                {
-                    OnConversionCompleted(new ConversionCompleteEventArgs(parameters.InputFile, parameters.OutputFile));
-                }
             }
         }
 
@@ -66,7 +65,7 @@ namespace FFmpeg.NET.Engine
             try
             {
                 messages.Insert(0, e.Data);
-                if (parameters.InputFile != null)
+                if (parameters.Input != null)
                 {
                     RegexEngine.TestVideo(e.Data, parameters);
                     RegexEngine.TestAudio(e.Data, parameters);
@@ -74,18 +73,18 @@ namespace FFmpeg.NET.Engine
                     var matchDuration = RegexEngine.Index[RegexEngine.Find.Duration].Match(e.Data);
                     if (matchDuration.Success)
                     {
-                        if (parameters.InputFile.MetaData == null)
-                            parameters.InputFile.MetaData = new MetaData {FileInfo = parameters.InputFile.FileInfo};
+                        if (parameters.Input.MetaData == null)
+                            parameters.Input.MetaData = new MetaData();
 
                         TimeSpan.TryParse(matchDuration.Groups[1].Value, out totalMediaDuration);
-                        parameters.InputFile.MetaData.Duration = totalMediaDuration;
+                        parameters.Input.MetaData.Duration = totalMediaDuration;
                     }
                 }
 
                 if (RegexEngine.IsProgressData(e.Data, out var progressData))
                 {
                     progressData.TotalDuration = totalMediaDuration;
-                    OnProgressChanged(new ConversionProgressEventArgs(progressData, parameters.InputFile, parameters.OutputFile));
+                    OnProgressChanged(new ConversionProgressEventArgs(progressData, parameters.Input, parameters.Output));
                 }
             }
             catch (Exception ex)
@@ -94,19 +93,9 @@ namespace FFmpeg.NET.Engine
             }
         }
 
-        private ProcessStartInfo GenerateStartInfo(string ffmpegPath, string arguments)
+        private ProcessStartInfo GenerateStartInfo(FFmpegParameters parameters, string ffmpegPath)
         {
-            return new ProcessStartInfo
-            {
-                Arguments = "-nostdin -y -loglevel info " + arguments,
-                FileName = ffmpegPath,
-                CreateNoWindow = true,
-                RedirectStandardInput = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
+            return new StreamToFileStartInfoBuilder().Build(parameters, ffmpegPath);
         }
 
         public event Action<ConversionProgressEventArgs> Progress;
@@ -132,6 +121,26 @@ namespace FFmpeg.NET.Engine
         private void OnData(ConversionDataEventArgs eventArgs)
         {
             Data?.Invoke(eventArgs);
+        }
+    }
+
+    internal class StreamToFileStartInfoBuilder
+    {
+        public ProcessStartInfo Build(FFmpegParameters parameters, string ffmpegPath)
+        {
+            var argumentBuilder = new FFmpegArgumentBuilder();
+            var arguments = argumentBuilder.Build(parameters);
+            return new ProcessStartInfo
+            {
+                Arguments = "-y -loglevel info " + arguments,
+                FileName = ffmpegPath,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
         }
     }
 }

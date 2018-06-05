@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 
 namespace FFmpeg.NET
 {
@@ -12,7 +11,6 @@ namespace FFmpeg.NET
         public TimeSpan Duration { get; internal set; }
         public Video VideoData { get; internal set; }
         public Audio AudioData { get; internal set; }
-        public FileInfo FileInfo { get; internal set; }
 
         public override string ToString()
         {

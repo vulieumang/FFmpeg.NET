@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using FFmpeg.NET.Compression;
 using FFmpeg.NET.Events;
 
@@ -33,45 +35,27 @@ namespace FFmpeg.NET.Engine
         public event EventHandler<ConversionCompleteEventArgs> Complete;
         public event EventHandler<ConversionDataEventArgs> Data;
 
-        public MetaData GetMetaData(MediaFile mediaFile)
+        public async Task<MetaData> GetMetaData(MediaObject media, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var parameters = new FFmpegParameters
-            {
-                Task = FFmpegTask.GetMetaData,
-                InputFile = mediaFile
-            };
-
-            Execute(parameters);
-            return parameters.InputFile.MetaData;
+            var parameters = new FFmpegParameters(media, null, FFmpegTask.GetMetaData, null);
+            await Execute(parameters, cancellationToken);
+            return parameters.Input.MetaData;
         }
 
-        public MediaFile GetThumbnail(MediaFile input, MediaFile output, ConversionOptions options)
+        public async Task<MediaObject> GetThumbnail(MediaObject input, MediaObject output, ConversionOptions options, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var parameters = new FFmpegParameters
-            {
-                Task = FFmpegTask.GetThumbnail,
-                InputFile = input,
-                OutputFile = output,
-                ConversionOptions = options
-            };
-
-            Execute(parameters);
-            return parameters.OutputFile;
+            var parameters = new FFmpegParameters(input, output, FFmpegTask.GetThumbnail, options);
+            await Execute(parameters, cancellationToken);
+            return parameters.Output;
         }
 
-        public MediaFile Convert(MediaFile input, MediaFile output, ConversionOptions options = null)
+        public async Task<MediaObject> Convert(MediaObject input, MediaObject output, ConversionOptions options, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var parameters = new FFmpegParameters
-            {
-                Task = FFmpegTask.Convert,
-                InputFile = input,
-                OutputFile = output,
-                ConversionOptions = options
-            };
-
-            Execute(parameters);
-            return parameters.OutputFile;
+            var parameters = new FFmpegParameters(input, output, FFmpegTask.Convert, options);
+            await Execute(parameters, cancellationToken);
+            return parameters.Output;
         }
+
 
         private void EnsureFFmpegFileExists()
         {
@@ -107,14 +91,14 @@ namespace FFmpeg.NET.Engine
             EnsureFFmpegFileExists();
         }
 
-        private void Execute(FFmpegParameters parameters)
+        private async Task Execute(FFmpegParameters parameters, CancellationToken cancellationToken = default(CancellationToken))
         {
             var ffmpegProcess = new FFmpegProcess();
             ffmpegProcess.Progress += OnProgress;
             ffmpegProcess.Completed += OnComplete;
             ffmpegProcess.Error += OnError;
             ffmpegProcess.Data += OnData;
-            ffmpegProcess.Execute(parameters, FFmpegFilePath);
+            await ffmpegProcess.Execute(parameters, FFmpegFilePath, cancellationToken);
         }
 
         private void OnProgress(ConversionProgressEventArgs e)

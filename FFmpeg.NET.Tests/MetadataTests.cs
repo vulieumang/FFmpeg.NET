@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using FFmpeg.NET.Tests.Fixtures;
 using Xunit;
 
@@ -13,16 +14,14 @@ namespace FFmpeg.NET.Tests
         private readonly MediaFileFixture _fixture;
 
         [Fact]
-        public void FFmpeg_Can_Read_Audio_Metadata()
+        public async Task FFmpeg_Can_Read_Audio_Metadata()
         {
             var ffmpeg = new Engine.FFmpeg();
 
-            var audioFile = _fixture.AudioFile;
-            var metaData = ffmpeg.GetMetaData(audioFile);
+            var audioFile = _fixture.Audio;
+            var metaData = await ffmpeg.GetMetaData(audioFile);
 
             Assert.NotNull(metaData);
-
-            Assert.Equal(metaData.FileInfo, audioFile.FileInfo);
 
             Assert.NotNull(metaData.AudioData);
             Assert.Equal("mp3", metaData.AudioData.Format);
@@ -34,15 +33,14 @@ namespace FFmpeg.NET.Tests
         }
 
         [Fact]
-        public void FFmpeg_Can_Read_Video_Metadata()
+        public async Task FFmpeg_Can_Read_Video_Metadata()
         {
             var ffmpeg = new Engine.FFmpeg();
 
-            var videoFile = _fixture.VideoFile;
-            var metaData = ffmpeg.GetMetaData(videoFile);
+            var videoFile = _fixture.Video;
+            var metaData = await ffmpeg.GetMetaData(videoFile);
 
             Assert.NotNull(metaData);
-            Assert.Equal(metaData.FileInfo, videoFile.FileInfo);
             Assert.NotNull(metaData.VideoData);
             Assert.Equal("h264 (Main) (avc1 / 0x31637661)", metaData.VideoData.Format);
             Assert.Equal("yuv420p,", metaData.VideoData.ColorModel);

@@ -8,36 +8,37 @@ namespace FFmpeg.NET.Services
 {
     public class XspfPlaylistCreator : IPlaylistCreator
     {
-        public string Create(IList<MetaData> metaData)
+        public string Create(IDictionary<FileInfo, MetaData> files)
         {
             var playlist = new Playlist
             {
                 Title = "Playlist",
                 Version = 1,
-                TrackList = new Track[metaData.Count],
+                TrackList = new Track[files.Count],
                 Extension = new PlaylistExtension
                 {
                     Application = "http://www.videolan.org/vlc/playlist/0",
-                    Items = new Item[metaData.Count]
+                    Items = new Item[files.Count]
                 }
             };
 
-
-            for (var i = 0; i < metaData.Count; i++)
+            var index = 0;
+            foreach (var file in files)
             {
-                playlist.TrackList[i] =
+                playlist.TrackList[index] =
                     new Track
                     {
-                        Title = metaData[i].FileInfo.Name,
-                        Duration = (uint) metaData[i].Duration.TotalMilliseconds,
-                        Location = $"file:///{metaData[i].FileInfo.FullName.Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)}",
+                        Title = file.Key.Name,
+                        Duration = (uint) file.Value.Duration.TotalMilliseconds,
+                        Location = $"file:///{file.Key.FullName.Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)}",
                         Extension = new Extension
                         {
                             Application = "http://www.videolan.org/vlc/playlist/0",
-                            Id = i
+                            Id = index
                         }
                     };
-                playlist.Extension.Items[i] = new Item {TId = i};
+                playlist.Extension.Items[index] = new Item {TId = index};
+                index++;
             }
 
             using (var sw = new Utf8StringWriter())
@@ -53,7 +54,6 @@ namespace FFmpeg.NET.Services
     }
 
 
-    
     internal sealed class Utf8StringWriter : StringWriter
     {
         public override Encoding Encoding => Encoding.UTF8;
@@ -115,4 +115,3 @@ namespace FFmpeg.NET.Services
         public int TId { get; set; }
     }
 }
-

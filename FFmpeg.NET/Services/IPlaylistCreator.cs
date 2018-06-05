@@ -1,9 +1,10 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 
 namespace FFmpeg.NET.Services
 {
     public interface IPlaylistCreator
     {
-        string Create(IList<MetaData> metaData);
+        string Create(IDictionary<FileInfo, MetaData> metaData);
     }
 }
