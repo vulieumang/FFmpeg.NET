@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using FFmpeg.NET.Tests.Fixtures;
@@ -22,6 +23,36 @@ namespace FFmpeg.NET.Tests
         [Fact]
         public async Task FFmpeg_Process_Can_Handle_Input_Streams()
         {
+            var file = @"C:\Temp\a.mp4";
+            using (var input = File.OpenRead(file))
+            using (var output = await ProcessStream(input))
+            using (var fs = File.OpenWrite(Path.ChangeExtension(file, ".mp3")))
+            {
+                await output.CopyToAsync(fs);
+            }
+        }
+
+        [Fact]
+        public async Task FFmpeg_Process_Can_Handle_Input_Streams_By_Reference()
+        {
+            var file = @"C:\Temp\a.mp4";
+            using (var input = File.OpenRead(file))
+            using (var output = File.OpenWrite(Path.ChangeExtension(file, ".mp3")))
+            {
+                await ProcessStream(input, output);
+            }
+        }
+
+        private async Task<Stream> ProcessStream(Stream input)
+        {
+            var output = new MemoryStream();
+            await ProcessStream(input, output);
+            output.Position = 0;
+            return output;
+        }
+
+        private async Task ProcessStream(Stream input, Stream output)
+        {
             using (var process = new Process())
             {
                 var startInfo = new ProcessStartInfo
@@ -37,31 +68,33 @@ namespace FFmpeg.NET.Tests
                 process.StartInfo = startInfo;
                 process.EnableRaisingEvents = true;
 
-                process.ErrorDataReceived += (sender, eventArgs) => { _output.WriteLine(eventArgs.Data); };
+                process.ErrorDataReceived += (sender, eventArgs) => { _output.WriteLine(eventArgs?.Data ?? string.Empty); };
 
                 process.Start();
                 process.BeginErrorReadLine();
 
-                var inputTask = Task.Run(() =>
+                // copytoasync will flush the whole stream at once.
+                // this is not effectively piping, buit just waiting till everything is done
+                // TODO refactor with ReadAsync and WriteAsync
+                // starting a new task is also a bit nasty but pretty much unavoidable
+                // starting multiple conversions at once could potentially end up in a deadlock by the threadpool :x
+                var inputTask = Task.Run(async () =>
                 {
-                    using (var input = _fixture.VideoFile.OpenRead())
-                    {
-                        input.CopyTo(process.StandardInput.BaseStream);
-                        process.StandardInput.Close();
-                    }
+                    await input.CopyToAsync(process.StandardInput.BaseStream);
+                    process.StandardInput.Close();
                 });
 
-                var outputTask = Task.Run(() =>
+                // copytoasync will flush the whole stream at once.
+                // this is not effectively piping, buit just waiting till everything is done
+                // TODO refactor with ReadAsync and WriteAsync
+                // starting a new task is also a bit nasty but pretty much unavoidable
+                // starting multiple conversions at once could potentially end up in a deadlock by the threadpool :x
+                var outputTask = Task.Run(async () =>
                 {
-                    using (var output = new MemoryStream())
-                    {
-                        process.StandardOutput.BaseStream.CopyTo(output);
-                        Assert.NotEmpty(output.ToArray());
-                    }
+                    await process.StandardOutput.BaseStream.CopyToAsync(output);
                 });
 
                 await Task.WhenAll(inputTask, outputTask);
-
                 process.WaitForExit();
             }
         }
