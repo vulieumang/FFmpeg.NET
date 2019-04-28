@@ -3,7 +3,7 @@ using System.IO;
 
 namespace FFmpeg.NET.Tests.Fixtures
 {
-    public class MediaFileFixture
+    public class MediaFileFixture : BaseFixture
     {
         public FileInfo VideoFile => new FileInfo(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"MediaFiles\SampleVideo_1280x720_1mb.mp4"));
         public MediaObject Video => new MediaObject(VideoFile.OpenRead());

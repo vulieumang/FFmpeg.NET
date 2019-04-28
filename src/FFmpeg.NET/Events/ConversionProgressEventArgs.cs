@@ -1,11 +1,11 @@
-﻿using System;
-using FFmpeg.NET.Engine.Models;
+﻿using FFmpeg.NET.Models;
+using System;
 
 namespace FFmpeg.NET.Events
 {
     public class ConversionProgressEventArgs : EventArgs
     {
-        internal ConversionProgressEventArgs(ProgressData progressData, MediaObject input, MediaObject output)
+        internal ConversionProgressEventArgs(ProgressData progressData, MediaFile input, MediaFile output)
         {
             Input = input;
             Output = output;
@@ -23,12 +23,10 @@ namespace FFmpeg.NET.Events
         public TimeSpan ProcessedDuration { get; }
         public double? Bitrate { get; }
         public TimeSpan TotalDuration { get; }
-        public MediaObject Output { get; }
-        public MediaObject Input { get; }
+        public MediaFile Output { get; }
+        public MediaFile Input { get; }
 
-        public override string ToString()
-        {
-            return $"Frame: {Frame}\nFps: {Fps}\nSize: {SizeKb}kb\nProcessedDuration: {ProcessedDuration}\nBitrate: {Bitrate}\nTotalDuration: {TotalDuration}";
-        }
+        public override string ToString() 
+            => $"[{Input?.FileInfo?.Name} => {Output?.FileInfo?.Name}]\nFrame: {Frame}\nFps: {Fps}\nSize: {SizeKb}kb\nProcessedDuration: {ProcessedDuration}\nBitrate: {Bitrate}\nTotalDuration: {TotalDuration}";
     }
 }
