@@ -23,10 +23,9 @@ namespace FFmpeg.NET.Tests
         [Fact]
         public async Task FFmpeg_Process_Can_Handle_Input_Streams()
         {
-            var file = @"C:\Temp\a.mp4";
-            using (var input = File.OpenRead(file))
+            using (var input = File.OpenRead(_fixture.AudioFile.FullName))
             using (var output = await ProcessStream(input))
-            using (var fs = File.OpenWrite(Path.ChangeExtension(file, ".mp3")))
+            using (var fs = File.OpenWrite(Path.ChangeExtension(_fixture.AudioFile.FullName, ".mp3")))
             {
                 await output.CopyToAsync(fs);
             }
@@ -35,9 +34,8 @@ namespace FFmpeg.NET.Tests
         [Fact]
         public async Task FFmpeg_Process_Can_Handle_Input_Streams_By_Reference()
         {
-            var file = @"C:\Temp\a.mp4";
-            using (var input = File.OpenRead(file))
-            using (var output = File.OpenWrite(Path.ChangeExtension(file, ".mp3")))
+            using (var input = File.OpenRead(_fixture.AudioFile.FullName))
+            using (var output = File.OpenWrite(Path.ChangeExtension(_fixture.AudioFile.FullName, ".mp3")))
             {
                 await ProcessStream(input, output);
             }
