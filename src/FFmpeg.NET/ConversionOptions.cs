@@ -46,6 +46,11 @@ namespace FFmpeg.NET
         /// </summary>
         public int? VideoBitRate { get; set; } = null;
 
+         /// <summary>
+        ///     AudioChannel
+        /// </summary>
+        public int? AudioChannel { get; set; } = null;
+        
         /// <summary>
         ///     Video frame rate
         /// </summary>
