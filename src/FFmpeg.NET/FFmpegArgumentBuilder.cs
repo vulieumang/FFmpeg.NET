@@ -97,6 +97,10 @@ namespace FFmpeg.NET
             if (conversionOptions.VideoBitRate != null)
                 commandBuilder.AppendFormat(" -b {0}k ", conversionOptions.VideoBitRate);
 
+            // AudioChannel
+            if (conversionOptions.AudioChannel != null)
+                commandBuilder.AppendFormat(" -ac {0} ", conversionOptions.AudioChannel);
+            
             // Video frame rate
             if (conversionOptions.VideoFps != null)
                 commandBuilder.AppendFormat(" -r {0} ", conversionOptions.VideoFps);
